@@ -256,7 +256,80 @@ pub mod game {
 
     pub mod board_setup {
         use std::vec;
+        use crate::game::components::board::Board;
+
         use super::*;
+
+        /// An enum defining all possible ship orientations.
+        enum ShipOrientation {
+            Left,
+            Up,
+            Right,
+            Down
+        }
+
+        impl ShipOrientation {
+            /// Given the current ship orientation, return the next orientation in clockwise order.
+            fn next(&self) -> ShipOrientation {
+                match self {
+                    ShipOrientation::Left => ShipOrientation::Up,
+                    ShipOrientation::Up => ShipOrientation::Right,
+                    ShipOrientation::Right => ShipOrientation::Down,
+                    ShipOrientation::Down => ShipOrientation::Left,
+                }
+            }
+        }
+
+        /// Try to place a ship on the player's board. If successful, returns true. Otherwise, returns false.
+        fn get_ship_placement_cell_states(
+            ship_type: &ship::ShipType, 
+            orientation: &ShipOrientation,
+            selected_cell: &(usize, usize)
+        ) -> (vec::Vec<(usize, usize)>, board::CellState) {
+            // clone the selected cell so we can modify it internally
+            let mut current = selected_cell.clone();
+
+            // initialize vector for indices and cell state that will be rendered
+            let mut indices: vec::Vec<(usize, usize)> = vec![];
+            let mut state: board::CellState = board::CellState::Highlighted;
+
+            // loop over the size of this ship and match the orientation to determine
+            // which cells to try to highlight
+            for _ in 0..ship_type.size() {
+                indices.push(current);
+                match orientation {
+                    ShipOrientation::Left => {
+                        if current.1 > 0 { current.1 -= 1; } else { 
+                            current.1 = board::COLS - 1;
+                            state = board::CellState::InvalidPlacement;
+                            break;
+                        };
+                    },
+                    ShipOrientation::Right => {
+                        if current.1 < board::COLS { current.1 += 1; } else { 
+                            current.1 = 0;
+                            state = board::CellState::InvalidPlacement;
+                            break;
+                        }
+                    },
+                    ShipOrientation::Up => {
+                        if current.0 > 0 { current.0 -= 1; } else { 
+                            current.0 = board::ROWS - 1;
+                            state = board::CellState::InvalidPlacement;
+                            break;
+                        }
+                    },
+                    ShipOrientation::Down => {
+                        if current.0 < board::ROWS  { current.0 += 1; } else { 
+                            current.0 = 0;
+                            state = board::CellState::InvalidPlacement;
+                            break;
+                        }
+                    },
+                }
+            };
+            (indices, state)
+        }
         
         /// Display the board setup in the terminal.
         pub fn show(player: &mut player::Player) -> std::io::Result<()> {
@@ -265,23 +338,17 @@ pub mod game {
             let mut out = std::io::stdout();
             execute!(out, terminal::EnterAlternateScreen, cursor::Hide, terminal::Clear(terminal::ClearType::All))?;
 
-            // begin rendering loop. at the end of this loop, we get returned an option that
-            // the user has completed setting up and that the game is ready to progress to
-            // the next stage
+            // set the necessary values for tracking the ship placement state
             let mut selected: (usize, usize) = (0, 0);
             let mut ship_selection: usize = 0;
             let mut selected_ship_type = ship::ShipType::ALL[ship_selection];
-            let mut valid_placement: bool = true;
-            let mut cells_to_highlight: vec::Vec<(usize, usize)>;
+            let mut cell_indices: vec::Vec<(usize, usize)>;
+            let mut ship_orientation: ShipOrientation = ShipOrientation::Left;
+            let mut cell_state_type: board::CellState;
 
-            // 0 -> left
-            // 1 -> up
-            // 2 -> right
-            // 3 -> down
-            let mut ship_orientation: usize = 0;
-
-            player.get_cell_mut(selected.0, selected.1).highlight();  // set the top left cell to be initially highlighted
-
+            // begin rendering loop. at the end of this loop, we get returned an option that
+            // the user has completed setting up and that the game is ready to progress to
+            // the next stage
             'render: loop {
                 // clear terminal and print the title and movement commands
                 queue!(out, cursor::MoveTo(0, 0), terminal::Clear(terminal::ClearType::All))?;
@@ -301,66 +368,21 @@ pub mod game {
 
                 // find the ship that corresponds to the currently selected index
                 selected_ship_type = ship::ShipType::ALL[ship_selection];
-                cells_to_highlight = vec![];
-                valid_placement = true;
-
-                // find the cells that will be highlighted based on the current ship and orientation
-                if ship_orientation == 0 {
-                    // try to get the length of the ship's worth of cells LEFT
-                    let mut current_idx = selected.1;
-                    for _ in 0..selected_ship_type.size() {
-                        cells_to_highlight.push((selected.0, current_idx));
-                        if current_idx > 0 {
-                            current_idx -= 1;
-                        } else {
-                            valid_placement = false;
-                        }
-                    }
-                } else if ship_orientation == 1 {
-                    // try to get the length of the ship's worth of cells UP
-                    let mut current_idx = selected.0;
-                    for _ in 0..selected_ship_type.size() {
-                        cells_to_highlight.push((current_idx, selected.1));
-                        if current_idx > 0 {
-                            current_idx -= 1;
-                        } else {
-                            valid_placement = false;
-                        }
-                    }
-                } else if ship_orientation == 2 {
-                    // try to get the length of the ship's worth of cells RIGHT
-                    let mut current_idx = selected.1;
-                    for _ in 0..selected_ship_type.size() {
-                        cells_to_highlight.push((selected.0, current_idx));
-                        if current_idx < board::ROWS {
-                            current_idx += 1;
-                        } else {
-                            valid_placement = false;
-                        }
-                    }
-                } else if ship_orientation == 3 {
-                    // try to get the length of the ship's worth of cells DOWN
-                    let mut current_idx = selected.0;
-                    for _ in 0..selected_ship_type.size() {
-                        cells_to_highlight.push((current_idx, selected.1));
-                        if current_idx < board::COLS {
-                            current_idx += 1;
-                        } else {
-                            valid_placement = false;
-                        }
-                    }
-                }
+                (cell_indices, cell_state_type) = get_ship_placement_cell_states(&selected_ship_type, &ship_orientation, &selected);
 
                 // print each cell in the board
                 for r in 0..board::ROWS {
                     for c in 0..board::COLS {
 
                         // undo highlight to the current cell 
-                        player.get_cell_mut(r, c).undo_highlight();
+                        player.get_cell_mut(r, c).undo();
                         
-                        if cells_to_highlight.contains(&(r,c)) {
-                            // apply highlight to the current cell
-                            player.get_cell_mut(r, c).highlight();
+                        if cell_indices.contains(&(r,c)) {
+                            match cell_state_type {
+                                board::CellState::Highlighted => player.get_cell_mut(r, c).highlight(),
+                                board::CellState::InvalidPlacement => player.get_cell_mut(r, c).invalidate(),
+                                _ => {}  // if not one of these two states, do nothing
+                            }
                         }
 
                         queue!(out, cursor::MoveTo((c as u16) * 3 , (r as u16)  + 4), style::Print(player.get_cell(r, c)))?;
@@ -379,15 +401,15 @@ pub mod game {
                             event::KeyCode::Left => selected.1 = if selected.1 == 0 { board::COLS - 1 } else { selected.1 - 1 },
                             event::KeyCode::Right => selected.1 = (selected.1 + 1) % board::COLS,
                             // allow for caps lock
-                            event::KeyCode::Char('q') | event::KeyCode::Char('Q') => ship_orientation = (ship_orientation + 1) % 4,
+                            event::KeyCode::Char('q') | event::KeyCode::Char('Q') => ship_orientation = ship_orientation.next(),
 
                             // if tab, swap through the selected ships
                             event::KeyCode::Tab => ship_selection = (ship_selection + 1) % ship::ShipType::ALL.len(),
 
                             // try to confirm the ship selection if valid. otherwise, do nothing
                             event::KeyCode::Enter => {
-                                if valid_placement {
-                                    // player.add_ship(cells_to_highlight, selected_ship_type);
+                                if true {
+                                    player.add_ship(cell_indices, selected_ship_type);
                                 }
                             },
 

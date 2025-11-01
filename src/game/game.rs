@@ -10,18 +10,18 @@ pub enum GameError {
     UnknownError
 }
 
-pub struct Game<'a> {
-    player_a: player::Player<'a>,
-    player_b: player::Player<'a>,
+pub struct Game {
+    player_a: player::Player,
+    player_b: player::Player,
     // we make turn count a 'usize' instead of something like 'u16' or 'u32'
     // because the turn_count is dictated by the board size, and since
     // board size is type 'usize', it would follow that turn_count should be also
     turn_count: usize,
 }
 
-impl<'a> Game<'a> {
+impl Game {
     /// Create a new game instance with the two players and a turn count of 0.
-    pub fn new(player_a: player::Player<'a>, player_b: player::Player<'a>) -> Self {
+    pub fn new(player_a: player::Player, player_b: player::Player) -> Self {
         Self { player_a, player_b, turn_count: 0 }
     }
 

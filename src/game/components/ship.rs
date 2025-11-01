@@ -1,6 +1,5 @@
 /// This module contains logic for managing and creating ships.
 use std::{fmt, vec};
-use super::board;
 
 
 /// An enum that defines all possible ship types for the game.
@@ -67,32 +66,20 @@ impl ShipType {
 }
 
 /// A struct to contain all associated data with a ship. 
-pub struct Ship<'a> {
+pub struct Ship {
     ship: ShipType,
-    cells: vec::Vec<&'a board::Cell>,
+    cells: vec::Vec<(usize, usize)>,
     is_sunk: bool
 }
 
-impl<'a> Ship<'a> {
+impl Ship {
     /// Given a ship type, return a new ship structure with that ship type
     /// and an empty vector of owned cells.
-    pub fn new(ship: ShipType, cells: vec::Vec<&'a board::Cell>) -> Self {
+    pub fn new(ship: ShipType, cells: vec::Vec<(usize, usize)>) -> Self {
         Self { 
             ship: ship,
             cells: cells,
             is_sunk: false
         }
-    }
-
-    /// A function to check if this ship is sunk.
-    pub fn is_sunk(&mut self) -> bool {
-        // if this ship is not yet sunk, check if it is.
-        // return the value of self.is_sunk
-        if !self.is_sunk { 
-            self.is_sunk = self.cells.iter().all(
-                |cell| if let board::CellState::HitShip = cell.get_state() { true } else { false }
-            ); 
-        };
-        self.is_sunk
     }
 }

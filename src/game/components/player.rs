@@ -4,13 +4,13 @@ use super::{board, ship};
 
 
 /// A struct for encapsulating player logic and state.
-pub struct Player<'a> {
+pub struct Player {
     name: &'static str,
     board: board::Board,
-    ships: vec::Vec<ship::Ship<'a>>,
+    ships: vec::Vec<ship::Ship>,
 }
 
-impl<'a> Player<'a> {
+impl Player {
     /// Create a new player with the given name and default ships and board layouts.
     pub fn new(name: &'static str) -> Self {
         Self {
@@ -28,16 +28,13 @@ impl<'a> Player<'a> {
         self.board.get_mut(row, col)
     }
 
-    // /// Set a ship on the player's board.
-    // pub fn add_ship(&'a mut self, cell_indices: vec::Vec<(usize, usize)>, ship_type: ship::ShipType) {
-
-    //     let mut cells: vec::Vec<&'a board::Cell> = vec![];
-    //     for (r, c) in cell_indices {
-    //         // get a reference to the actual cells from the provided indices
-    //         cells.push(self.get_cell(r, c));
-    //     }
-
-    //     // create a new ship with this ship type
-    //     self.ships.push(ship::Ship::new(ship_type, cells));
-    // }
+    /// Set a ship on the player's board.
+    pub fn add_ship(&mut self, cell_indices: vec::Vec<(usize, usize)>, ship_type: ship::ShipType) {
+        let ship: ship::Ship = ship::Ship::new(ship_type, cell_indices.clone());
+        self.ships.push(ship);
+        // update the board cells to reflect the ship placement
+        for (row, col) in cell_indices {
+            self.board.set(row, col, board::CellState::OwnShip(ship_type))
+        }
+    }
 }

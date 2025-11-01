@@ -20,6 +20,7 @@ pub enum CellState {
     OwnShip(ship::ShipType),
     HitShip,
     Highlighted,
+    InvalidPlacement,
 }
 
 impl fmt::Display for CellState {
@@ -29,17 +30,18 @@ impl fmt::Display for CellState {
             CellState::Guessed => "▣".white(),
             CellState::OwnShip(ship_type) => {
                 match ship_type {
-                    ship::ShipType::Carrier(size, symbol)
-                    | ship::ShipType::Battleship(size, symbol)
-                    | ship::ShipType::Destroyer(size, symbol)
-                    | ship::ShipType::Submarine(size, symbol)
-                    | ship::ShipType::PatrolBoat(size, symbol) => {
+                    ship::ShipType::Carrier(_, symbol)
+                    | ship::ShipType::Battleship(_, symbol)
+                    | ship::ShipType::Destroyer(_, symbol)
+                    | ship::ShipType::Submarine(_, symbol)
+                    | ship::ShipType::PatrolBoat(_, symbol) => {
                         format!("{}", symbol).green()
                     }
                 }
             }
             CellState::HitShip => "◼".red(),
             CellState::Highlighted => "◼".blue(),
+            CellState::InvalidPlacement => "X".red(),
         };
         write!(f, "{}", cell_content)
     }
@@ -62,6 +64,11 @@ impl Cell {
         Self { state: CellState::Empty, prev_state: CellState::Empty }
     }
 
+    /// Undo the previous cell state change.
+    pub fn undo(&mut self) {
+        self.state = self.prev_state;
+    }
+
     /// Apply the highlight state to a cell. Set the previous state that way we can undo
     /// the highlight properly.
     pub fn highlight(&mut self) {
@@ -69,9 +76,11 @@ impl Cell {
         self.state = CellState::Highlighted;
     }
 
-    /// Undo the highlight state to a cell
-    pub fn undo_highlight(&mut self) {
-        self.state = self.prev_state;
+    /// Apply the invalid placement state to a cell. Set the previous state that way we can undo
+    /// the invalid placement properly.
+    pub fn invalidate(&mut self) {
+        self.prev_state = self.state;
+        self.state = CellState::InvalidPlacement;
     }
 
     pub fn get_state(&self) -> CellState {
@@ -112,8 +121,8 @@ impl Board {
         self.get_mut(row, col).highlight();
     }
 
-    pub fn undo_highlight_cell(&mut self, row: usize, col: usize) {
-        self.get_mut(row, col).undo_highlight();
+    pub fn undo(&mut self, row: usize, col: usize) {
+        self.get_mut(row, col).undo();
     }
 
     /// Updates a single cell of the board.
@@ -121,7 +130,8 @@ impl Board {
         // due to type restrictions, we do not need to check if row and
         // col are > 0
         if (row < ROWS) && (col < COLS) {
-            self.cells[row * col + col].state = state;
+            self.cells[row * COLS + col].state = state;
+            self.cells[row * COLS + col].prev_state = state;
         }
     }
 }
