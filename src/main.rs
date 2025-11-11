@@ -2,8 +2,7 @@ use battleship::{
     game::{
         self,
         layouts::{self, TerminalLayout, menus::{self, new_game_menu::NewGameMenuOptions}}
-    }, 
-    server
+    }
 };
 
 fn main() {
@@ -36,8 +35,28 @@ fn main() {
     match game_type_option.unwrap() {
         menus::new_game_menu::NewGameMenuOptions::PlayComputer => {
             // create a new game against the computer
-            let mut player = game::components::player::Player::new("Test player");
-            layouts::game::board_setup::show(&mut player);
+            let mut player = game::components::player::Player::new("Player");
+            let mut computer_player = game::components::player::Player::new("Computer");
+
+            // let the player set up their board
+            layouts::game::board_setup::show(&mut player).expect("Failed to setup player ships");
+
+            // setup the computer's board automatically
+            computer_player.auto_place_ships(100, 10).expect("Failed to auto-place computer ships");
+
+            // start the game loop
+            
+            let mut game_instance = game::game::Game::new(player, computer_player);
+            
+            match game_instance.start_loop() {
+                Ok(winner) => layouts::game::win_screen::show(game_instance.get_player_a(), game_instance.get_player_b(),
+                    match winner {
+                        game::game::GameEndReason::PlayerAWon => "Player",
+                        game::game::GameEndReason::PlayerBWon => "Computer"
+                    }
+                ).expect("Failed to show win screen"),
+                Err(e) => println!("Game ended with error: {}", e)
+            }
         },
         _ => {}  // for now, we only support  playing the computer
     }

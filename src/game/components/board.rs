@@ -1,8 +1,6 @@
 /// This module contains logic for managing board state.
 use std::{fmt, vec};
 use colored::Colorize;
-use crate::game::components::ship::ShipType;
-
 use super::ship;
 
 
@@ -13,7 +11,7 @@ pub const COLS: usize = 10;
 /// An enum that defines all possible states a board cell can exist in.
 /// When a cell is modified on the board, we simply adjust the enumeration
 /// assigned to that cell.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum CellState {
     Empty,
     Guessed,
@@ -47,6 +45,7 @@ impl fmt::Display for CellState {
     }
 }
 
+#[derive(Clone)]
 pub struct Cell {
     state: CellState,
     prev_state: CellState
@@ -83,8 +82,21 @@ impl Cell {
         self.state = CellState::InvalidPlacement;
     }
 
+    /// Get the current state of the cell.
     pub fn get_state(&self) -> CellState {
         self.state
+    }
+
+    /// Get the previous state of the cell.
+    pub fn get_prev_state(&self) -> CellState {
+        self.prev_state
+    }
+
+    pub fn get_hidden_cell(cell: &Cell) -> Cell {
+        match cell.state {
+            CellState::OwnShip(_) => Cell { state: CellState::Empty, prev_state: CellState::Empty },
+            _ => Cell { state: cell.state, prev_state: cell.prev_state }
+        }
     }
 }
 
@@ -126,7 +138,7 @@ impl Board {
     }
 
     /// Updates a single cell of the board.
-    fn update(&mut self, row: usize, col: usize, state: CellState) {
+    pub fn update(&mut self, row: usize, col: usize, state: CellState) {
         // due to type restrictions, we do not need to check if row and
         // col are > 0
         if (row < ROWS) && (col < COLS) {
@@ -134,4 +146,53 @@ impl Board {
             self.cells[row * COLS + col].prev_state = state;
         }
     }
+
+    /// Checks whether a ship placement is valid.
+    pub fn try_place_ship(
+        &self, 
+        r: usize, 
+        c: usize, 
+        orient: ship::ShipOrientation, 
+        ship_type: ship::ShipType
+    ) -> Option<vec::Vec<(usize, usize)>> {
+        // starting from the given cell, check if the ship can fit in the given orientation
+        // without overlapping any existing ships or going out of bounds
+        let ship_length: usize = ship_type.size();
+        let mut indices: Option<vec::Vec<(usize, usize)>> = Some(vec![]);
+
+        for i in 0..ship_length {
+            match orient {
+                ship::ShipOrientation::Up => {
+                    if (i > r) || self.get(r - i, c).get_state() != CellState::Empty {
+                        indices = None;
+                        break;
+                    }
+                    indices.as_mut().unwrap().push((r - i, c));
+                },
+                ship::ShipOrientation::Down => {
+                    if (i + r >= ROWS) || self.get(r + i, c).get_state() != CellState::Empty {
+                        indices = None;
+                        break;
+                    }
+                    indices.as_mut().unwrap().push((r + i, c));
+                },
+                ship::ShipOrientation::Left => {
+                    if (i > c) || self.get(r, c - i).get_state() != CellState::Empty {
+                        indices = None;
+                        break;
+                    }
+                    indices.as_mut().unwrap().push((r, c - i));
+                },
+                ship::ShipOrientation::Right => {
+                    if (i + c >= COLS) || self.get(r, c + i).get_state() != CellState::Empty {
+                        indices = None;
+                        break;
+                    }
+                    indices.as_mut().unwrap().push((r, c + i));
+                }
+            }
+        };
+
+        indices
+    }   
 }

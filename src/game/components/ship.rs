@@ -1,9 +1,44 @@
 /// This module contains logic for managing and creating ships.
 use std::{fmt, vec};
+use rand::distributions::{Distribution, Standard};
+use super::board;
 
+
+/// An enum to represent the orientation of a ship.
+pub enum ShipOrientation {
+    Left,
+    Up,
+    Right,
+    Down
+}
+
+impl ShipOrientation {
+    /// Given the current ship orientation, return the next orientation in clockwise order.
+    pub fn next(&self) -> ShipOrientation {
+        match self {
+            ShipOrientation::Left => ShipOrientation::Up,
+            ShipOrientation::Up => ShipOrientation::Right,
+            ShipOrientation::Right => ShipOrientation::Down,
+            ShipOrientation::Down => ShipOrientation::Left,
+        }
+    }
+}
+
+/// Implement the rand::Distribution trait for ShipOrientation in order to randomly
+/// select ship orientations for automatic board setup.
+impl Distribution<ShipOrientation> for Standard {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> ShipOrientation {
+        match rng.gen_range(0..4) {
+            0 => ShipOrientation::Left,
+            1 => ShipOrientation::Up,
+            2 => ShipOrientation::Right,
+            _ => ShipOrientation::Down,
+        }
+    }
+}
 
 /// An enum that defines all possible ship types for the game.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ShipType {
     Carrier(usize, char),
     Battleship(usize, char),
@@ -81,5 +116,17 @@ impl Ship {
             cells: cells,
             is_sunk: false
         }
+    }
+
+    /// Check whether this ship is sunk based on the current board state.
+    pub fn is_sunk(&self, board: &board::Board) -> bool {
+        // check each corresponding cell in the board to see if it's been hit
+        for (row, col) in self.cells.iter() {
+            let cell: &board::Cell = board.get(*row, *col);
+            if cell.get_state() != board::CellState::HitShip {
+                return false;
+            }
+        }
+        true
     }
 }

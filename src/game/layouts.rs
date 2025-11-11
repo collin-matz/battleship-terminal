@@ -256,35 +256,20 @@ pub mod game {
 
     pub mod board_setup {
         use std::vec;
-        use crate::game::components::board::Board;
 
         use super::*;
 
-        /// An enum defining all possible ship orientations.
-        enum ShipOrientation {
-            Left,
-            Up,
-            Right,
-            Down
-        }
-
-        impl ShipOrientation {
-            /// Given the current ship orientation, return the next orientation in clockwise order.
-            fn next(&self) -> ShipOrientation {
-                match self {
-                    ShipOrientation::Left => ShipOrientation::Up,
-                    ShipOrientation::Up => ShipOrientation::Right,
-                    ShipOrientation::Right => ShipOrientation::Down,
-                    ShipOrientation::Down => ShipOrientation::Left,
-                }
-            }
+        /// An Enum defining the possible states that can be returned from the render loop.
+        pub enum ShipSetupOption {
+            Continue,
+            Quit
         }
 
         /// Try to place a ship on the player's board. If successful, returns true. Otherwise, returns false.
         fn get_ship_placement_cell_states(
             ship_type: &ship::ShipType, 
-            orientation: &ShipOrientation,
-            selected_cell: &(usize, usize)
+            orientation: &ship::ShipOrientation,
+            selected_cell: &(usize, usize),
         ) -> (vec::Vec<(usize, usize)>, board::CellState) {
             // clone the selected cell so we can modify it internally
             let mut current = selected_cell.clone();
@@ -298,28 +283,28 @@ pub mod game {
             for _ in 0..ship_type.size() {
                 indices.push(current);
                 match orientation {
-                    ShipOrientation::Left => {
+                    ship::ShipOrientation::Left => {
                         if current.1 > 0 { current.1 -= 1; } else { 
                             current.1 = board::COLS - 1;
                             state = board::CellState::InvalidPlacement;
                             break;
                         };
                     },
-                    ShipOrientation::Right => {
+                    ship::ShipOrientation::Right => {
                         if current.1 < board::COLS { current.1 += 1; } else { 
                             current.1 = 0;
                             state = board::CellState::InvalidPlacement;
                             break;
                         }
                     },
-                    ShipOrientation::Up => {
+                    ship::ShipOrientation::Up => {
                         if current.0 > 0 { current.0 -= 1; } else { 
                             current.0 = board::ROWS - 1;
                             state = board::CellState::InvalidPlacement;
                             break;
                         }
                     },
-                    ShipOrientation::Down => {
+                    ship::ShipOrientation::Down => {
                         if current.0 < board::ROWS  { current.0 += 1; } else { 
                             current.0 = 0;
                             state = board::CellState::InvalidPlacement;
@@ -332,7 +317,7 @@ pub mod game {
         }
         
         /// Display the board setup in the terminal.
-        pub fn show(player: &mut player::Player) -> std::io::Result<()> {
+        pub fn show(player: &mut player::Player) -> std::io::Result<ShipSetupOption> {
             // enter an alternate screen
             terminal::enable_raw_mode()?;
             let mut out = std::io::stdout();
@@ -341,29 +326,43 @@ pub mod game {
             // set the necessary values for tracking the ship placement state
             let mut selected: (usize, usize) = (0, 0);
             let mut ship_selection: usize = 0;
-            let mut selected_ship_type = ship::ShipType::ALL[ship_selection];
+            let mut ship_has_been_placed: vec::Vec<bool> = vec![false; ship::ShipType::ALL.len()];
+            let mut selected_ship_type: ship::ShipType = ship::ShipType::ALL[ship_selection];
             let mut cell_indices: vec::Vec<(usize, usize)>;
-            let mut ship_orientation: ShipOrientation = ShipOrientation::Left;
+            let mut ship_orientation: ship::ShipOrientation = ship::ShipOrientation::Left;
             let mut cell_state_type: board::CellState;
 
             // begin rendering loop. at the end of this loop, we get returned an option that
             // the user has completed setting up and that the game is ready to progress to
             // the next stage
-            'render: loop {
+            let selected_ship_setup_option: ShipSetupOption = 'render: loop {
                 // clear terminal and print the title and movement commands
                 queue!(out, cursor::MoveTo(0, 0), terminal::Clear(terminal::ClearType::All))?;
-                queue!(out, style::Print("Use ←/↑/→/↓ to move, Esc to quit the game\n\n"))?;
+                queue!(out, style::Print("Use ←/↑/→/↓ to move, R to rotate the ship's orientation, Esc to quit the game\n\n"))?;
                 
                 for (i, ship) in ship::ShipType::iter().enumerate() {
+                    // highlight the currently selected ship
                     if i == ship_selection {
                         queue!(out, style::SetAttribute(style::Attribute::Reverse))?;
                     }
-
+                    // if the ship has been placed, gray it out
+                    if ship_has_been_placed[i] {
+                        queue!(out, style::SetForegroundColor(style::Color::DarkGrey))?;
+                    }
+                    
                     queue!(out, cursor::MoveTo(i as u16 * 15, 2), style::Print(ship))?;
 
+                    // reset styles after printing
+                    if ship_has_been_placed[i] {
+                        queue!(out, style::SetForegroundColor(style::Color::Reset))?;
+                    }
                     if i == ship_selection {
                         queue!(out, style::SetAttribute(style::Attribute::NoReverse))?;
                     }
+                }
+
+                if (ship_has_been_placed.iter().all(|x| x == &true)) {
+                    queue!(out, cursor::MoveTo(ship::ShipType::ALL.len() as u16 * 15, 2), style::Print("Press Enter to Continue"))?;
                 }
 
                 // find the ship that corresponds to the currently selected index
@@ -401,20 +400,33 @@ pub mod game {
                             event::KeyCode::Left => selected.1 = if selected.1 == 0 { board::COLS - 1 } else { selected.1 - 1 },
                             event::KeyCode::Right => selected.1 = (selected.1 + 1) % board::COLS,
                             // allow for caps lock
-                            event::KeyCode::Char('q') | event::KeyCode::Char('Q') => ship_orientation = ship_orientation.next(),
+                            event::KeyCode::Char('r') | event::KeyCode::Char('R') => ship_orientation = ship_orientation.next(),
 
                             // if tab, swap through the selected ships
                             event::KeyCode::Tab => ship_selection = (ship_selection + 1) % ship::ShipType::ALL.len(),
 
                             // try to confirm the ship selection if valid. otherwise, do nothing
                             event::KeyCode::Enter => {
-                                if true {
+                                // if enter is pressed before all ships are placed, try to place the selected ship
+                                if (!ship_has_been_placed[ship_selection]) && (cell_state_type != board::CellState::InvalidPlacement) {
                                     player.add_ship(cell_indices, selected_ship_type);
+                                    ship_has_been_placed[ship_selection] = true;
+                                }
+                                // else, if all ships have been placed, exit the setup loop
+                                else if ship_has_been_placed.iter().all(|x| x == &true) {
+                                    // before continuing, undo the cell highlights
+                                    for r in 0..board::ROWS {
+                                        for c in 0..board::COLS {
+                                            // undo highlight to the current cell 
+                                            player.get_cell_mut(r, c).undo();
+                                        }
+                                    }
+                                    break 'render ShipSetupOption::Continue;
                                 }
                             },
 
                             // break render loop if user hits esc
-                            event::KeyCode::Esc => break 'render,
+                            event::KeyCode::Esc => break 'render ShipSetupOption::Quit,
                             _ => {}
                         }
                     }
@@ -426,6 +438,126 @@ pub mod game {
             terminal::disable_raw_mode()?;
 
             // return an Ok with the selected menu option
+            Ok(selected_ship_setup_option)
+        }
+    }
+
+    pub mod main_loop {
+
+        use super::*;
+
+        // constant for offsetting opponent's board rendering
+        const OPPONENT_BOARD_OFFSET: u16 = 60;
+
+        pub fn show_once(
+            out: &mut std::io::Stdout, 
+            turn_count: usize,
+            player: &mut player::Player, 
+            opponent: &mut player::Player,
+            player_a_cursor_position: &mut(usize, usize)
+        ) -> std::io::Result<Option<(usize, usize)>> {
+            // clear terminal and print the title and movement commands
+            queue!(out, cursor::MoveTo(0, 0), terminal::Clear(terminal::ClearType::All))?;
+            queue!(out, style::Print("Use ←/↑/→/↓ to move, Enter to guess a location on the opponent's board, Esc to quit the game\n\n"))?;
+            queue!(out, style::Print(format!("TURN: {}\n\n", turn_count)))?;
+
+            // print each cell in the board
+            for r in 0..board::ROWS {
+                for c in 0..board::COLS {
+
+                    // undo highlight to the current cell 
+                    opponent.get_cell_mut(r, c).undo();
+                    
+                    if &(r, c) == player_a_cursor_position {
+                        opponent.get_cell_mut(r, c).highlight();
+                    }
+
+                    // print both the player's and opponent's boards
+                    queue!(out, cursor::MoveTo((c as u16) * 3 , (r as u16)  + 4), style::Print(player.get_cell(r, c)))?;
+                    queue!(out, cursor::MoveTo((c as u16) * 3 + OPPONENT_BOARD_OFFSET , (r as u16)  + 4), style::Print(opponent.get_hidden_cell(r, c)))?;
+                }
+            }
+
+            // write all output to the screen
+            out.flush()?;
+
+            // poll for the last event that occurred
+            if let event::Event::Key(key) = event::read()? {
+                if key.kind == event::KeyEventKind::Press {
+                    match key.code {
+                        event::KeyCode::Up => player_a_cursor_position.0 = if player_a_cursor_position.0 == 0 { board::ROWS - 1 } else { player_a_cursor_position.0 - 1 },
+                        event::KeyCode::Down => player_a_cursor_position.0 = if player_a_cursor_position.0 == board::ROWS - 1 { 0 } else { player_a_cursor_position.0 + 1 },
+                        event::KeyCode::Left => player_a_cursor_position.1 = if player_a_cursor_position.1 == 0 { board::COLS - 1 } else { player_a_cursor_position.1 - 1 },
+                        event::KeyCode::Right => player_a_cursor_position.1 = if player_a_cursor_position.1 == board::COLS - 1 { 0 } else { player_a_cursor_position.1 + 1 },
+                        event::KeyCode::Enter => {
+                            return Ok(Some(*player_a_cursor_position));
+                        },
+                        event::KeyCode::Esc => {
+                            return Err(std::io::Error::new(std::io::ErrorKind::Other, "User exited game"));
+                        },
+                        _ => {}
+                    }
+                }
+            } 
+
+            Ok(None)
+        }
+    }
+
+
+    pub mod win_screen {
+
+        use super::*;
+
+        // constant for offsetting opponent's board rendering
+        const OPPONENT_BOARD_OFFSET: u16 = 60;
+
+        pub fn show(
+            player: &player::Player, 
+            opponent: &player::Player,
+            winner: &str
+        ) -> std::io::Result<()> {
+
+            // enter an alternate screen for the win screen
+            terminal::enable_raw_mode()?;
+            let mut out = std::io::stdout();
+            execute!(out, terminal::EnterAlternateScreen, cursor::Hide, terminal::Clear(terminal::ClearType::All))?;
+            
+            loop {
+                // clear terminal and print the title and movement commands
+                queue!(out, cursor::MoveTo(0, 0), terminal::Clear(terminal::ClearType::All))?;
+                queue!(out, style::Print("Press Esc to quit the game\n\n"))?;
+                queue!(out, style::Print(format!("Winner: {}!\n\n", winner)))?;
+
+                // print each cell in the board
+                for r in 0..board::ROWS {
+                    for c in 0..board::COLS {
+                        // print both the player's and opponent's boards
+                        queue!(out, cursor::MoveTo((c as u16) * 3 , (r as u16)  + 4), style::Print(player.get_cell(r, c)))?;
+                        queue!(out, cursor::MoveTo((c as u16) * 3 + OPPONENT_BOARD_OFFSET , (r as u16)  + 4), style::Print(opponent.get_cell(r, c)))?;
+                    }
+                }
+
+                // write all output to the screen
+                out.flush()?;
+
+                // poll for the last event that occurred
+                if let event::Event::Key(key) = event::read()? {
+                    if key.kind == event::KeyEventKind::Press {
+                        match key.code {
+                            event::KeyCode::Esc => {
+                                break;
+                            },
+                            _ => {}
+                        }
+                    }
+                } 
+            }
+
+            // leave the win screen.
+            execute!(out, cursor::Show, terminal::LeaveAlternateScreen)?;
+            terminal::disable_raw_mode()?;
+
             Ok(())
         }
     }
