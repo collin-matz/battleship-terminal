@@ -49,12 +49,15 @@ fn main() {
             let mut game_instance = game::game::Game::new(player, computer_player);
             
             match game_instance.start_loop() {
-                Ok(winner) => layouts::game::win_screen::show(game_instance.get_player_a(), game_instance.get_player_b(),
+                Ok(winner) => {
+                    layouts::game::win_screen::show(game_instance.get_player_a(), game_instance.get_player_b(),
                     match winner {
                         game::game::GameEndReason::PlayerAWon => "Player",
                         game::game::GameEndReason::PlayerBWon => "Computer"
                     }
-                ).expect("Failed to show win screen"),
+                ).expect("Failed to show win screen");
+                println!("Thanks for playing!");
+            },
                 Err(e) => println!("Game ended with error: {}", e)
             }
         },

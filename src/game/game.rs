@@ -1,7 +1,5 @@
 /// Module for housing game logic and management.
-use std::vec;
-use thiserror::Error;
-use crate::game::components::{board, player, ship};
+use crate::game::components::{player};
 use crate::game::layouts;
 
 use crossterm::{

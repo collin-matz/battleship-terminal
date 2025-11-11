@@ -39,7 +39,7 @@ impl Player {
 
     /// Set a ship on the player's board.
     pub fn add_ship(&mut self, cell_indices: vec::Vec<(usize, usize)>, ship_type: ship::ShipType) {
-        let ship: ship::Ship = ship::Ship::new(ship_type, cell_indices.clone());
+        let ship: ship::Ship = ship::Ship::new(cell_indices.clone());
         self.ships.push(ship);
         // update the board cells to reflect the ship placement
         for (row, col) in cell_indices {

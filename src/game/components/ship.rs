@@ -102,20 +102,13 @@ impl ShipType {
 
 /// A struct to contain all associated data with a ship. 
 pub struct Ship {
-    ship: ShipType,
-    cells: vec::Vec<(usize, usize)>,
-    is_sunk: bool
+    cells: vec::Vec<(usize, usize)>
 }
 
 impl Ship {
-    /// Given a ship type, return a new ship structure with that ship type
-    /// and an empty vector of owned cells.
-    pub fn new(ship: ShipType, cells: vec::Vec<(usize, usize)>) -> Self {
-        Self { 
-            ship: ship,
-            cells: cells,
-            is_sunk: false
-        }
+    /// Return a new ship structure with an empty vector of owned cells.
+    pub fn new(cells: vec::Vec<(usize, usize)>) -> Self {
+        Self { cells: cells }
     }
 
     /// Check whether this ship is sunk based on the current board state.

@@ -361,7 +361,7 @@ pub mod game {
                     }
                 }
 
-                if (ship_has_been_placed.iter().all(|x| x == &true)) {
+                if ship_has_been_placed.iter().all(|x| x == &true) {
                     queue!(out, cursor::MoveTo(ship::ShipType::ALL.len() as u16 * 15, 2), style::Print("Press Enter to Continue"))?;
                 }
 
